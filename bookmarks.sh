@@ -14,6 +14,9 @@ Usage:
   bm go <name>           Change directory to bookmark
   bm <name>              Shortcut for "bm go <name>"
   bm ls                  List all bookmarks
+  bm info                Show bookmark file and stats
+  bm clean               Remove bookmarks whose folders no longer exist
+  bm cleanup             Alias for "bm clean"
   bm path <name>         Print bookmark path
   bm rm <name>           Remove bookmark
   bm help                Show this help
@@ -74,6 +77,61 @@ _bm_remove() {
   mv "$tmp_file" "$bm_file"
 }
 
+_bm_info() {
+  bm_file="$(_bm_file)"
+  tab_char="$(printf '\t')"
+  total=0
+  valid=0
+  invalid=0
+
+  while IFS="$tab_char" read -r name bm_target || [ -n "$name$bm_target" ]; do
+    [ -n "$name" ] || continue
+    total=$((total + 1))
+    if [ -d "$bm_target" ]; then
+      valid=$((valid + 1))
+    else
+      invalid=$((invalid + 1))
+    fi
+  done <"$bm_file"
+
+  printf 'Bookmarks file: %s\n' "$bm_file"
+  printf 'Total bookmarks: %s\n' "$total"
+  printf 'Valid folders: %s\n' "$valid"
+  printf 'Invalid folders: %s\n' "$invalid"
+}
+
+_bm_clean() {
+  bm_file="$(_bm_file)"
+  tab_char="$(printf '\t')"
+  tmp_file="${bm_file}.tmp.$$"
+  kept=0
+  removed=0
+
+  : >"$tmp_file" || return 1
+
+  while IFS="$tab_char" read -r name bm_target || [ -n "$name$bm_target" ]; do
+    [ -n "$name" ] || continue
+
+    if [ -d "$bm_target" ]; then
+      printf '%s\t%s\n' "$name" "$bm_target" >>"$tmp_file" || {
+        rm -f "$tmp_file"
+        return 1
+      }
+      kept=$((kept + 1))
+    else
+      printf 'Removed invalid bookmark: %s (%s)\n' "$name" "$bm_target"
+      removed=$((removed + 1))
+    fi
+  done <"$bm_file"
+
+  mv "$tmp_file" "$bm_file" || {
+    rm -f "$tmp_file"
+    return 1
+  }
+
+  printf 'Clean complete. Kept %s, removed %s.\n' "$kept" "$removed"
+}
+
 bm() {
   _bm_init || {
     printf 'Failed to initialize bookmarks database: %s\n' "$(_bm_file)" >&2
@@ -116,6 +174,12 @@ bm() {
       return 0
     fi
     awk -F '\t' '{ printf "%-20s %s\n", $1, $2 }' "$bm_file" | sort
+    ;;
+  info)
+    _bm_info
+    ;;
+  clean | cleanup)
+    _bm_clean
     ;;
   path)
     name="$2"

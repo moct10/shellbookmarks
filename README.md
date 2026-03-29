@@ -23,6 +23,8 @@ source ~/.bashrc
 ```sh
 bm add proj ~/work/project      # Save a bookmark
 bm ls                           # List bookmarks
+bm info                         # Show storage file + valid/invalid counts
+bm clean                        # Remove bookmarks pointing to missing folders
 bm proj                         # cd to bookmark (shortcut)
 bm go proj                      # cd to bookmark
 bm path proj                    # Print path only
