@@ -11,8 +11,10 @@ _bm_help() {
   cat <<'EOF'
 Usage:
   bm add <name> [path]   Save current directory (or path) as a bookmark
-  bm go <name>           Change directory to bookmark
-  bm <name>              Shortcut for "bm go <name>"
+  bm go <name> [subpath ...]
+                         Change directory to bookmark or bookmark subfolder
+  bm <name> [subpath ...]
+                         Shortcut for "bm go <name> [subpath ...]"
   bm ls                  List all bookmarks
   bm info                Show bookmark file and stats
   bm clean               Remove bookmarks whose folders no longer exist
@@ -132,6 +134,61 @@ _bm_clean() {
   printf 'Clean complete. Kept %s, removed %s.\n' "$kept" "$removed"
 }
 
+_bm_resolve_target() {
+  name="$1"
+  shift
+
+  base="$(_bm_get "$name")" || {
+    printf 'Bookmark not found: %s\n' "$name" >&2
+    return 1
+  }
+
+  bm_subpath=""
+  for bm_seg in "$@"; do
+    case "$bm_seg" in
+    /*)
+      printf 'Subpath must be relative, not absolute: %s\n' "$bm_seg" >&2
+      return 1
+      ;;
+    esac
+
+    bm_seg="${bm_seg#/}"
+    bm_seg="${bm_seg%/}"
+    [ -n "$bm_seg" ] || continue
+
+    if [ -z "$bm_subpath" ]; then
+      bm_subpath="$bm_seg"
+    else
+      bm_subpath="${bm_subpath}/${bm_seg}"
+    fi
+  done
+
+  case "/$bm_subpath/" in
+  */../*)
+    printf 'Subpath cannot contain "..": %s\n' "$bm_subpath" >&2
+    return 1
+    ;;
+  esac
+
+  if [ -n "$bm_subpath" ]; then
+    printf '%s\n' "${base%/}/${bm_subpath}"
+  else
+    printf '%s\n' "$base"
+  fi
+}
+
+_bm_cd_bookmark() {
+  name="$1"
+  shift
+
+  target="$(_bm_resolve_target "$name" "$@")" || return 1
+  [ -d "$target" ] || {
+    printf 'Directory does not exist: %s\n' "$target" >&2
+    return 1
+  }
+  cd "$target" || return 1
+}
+
 bm() {
   _bm_init || {
     printf 'Failed to initialize bookmarks database: %s\n' "$(_bm_file)" >&2
@@ -204,37 +261,18 @@ bm() {
   go)
     name="$2"
     [ -n "$name" ] || {
-      printf 'Usage: bm go <name>\n' >&2
+      printf 'Usage: bm go <name> [subpath ...]\n' >&2
       return 1
     }
-    target="$(_bm_get "$name")" || {
-      printf 'Bookmark not found: %s\n' "$name" >&2
-      return 1
-    }
-    [ -d "$target" ] || {
-      printf 'Bookmarked directory no longer exists: %s\n' "$target" >&2
-      return 1
-    }
-    cd "$target" || return 1
+    shift 2
+    _bm_cd_bookmark "$name" "$@" || return 1
     ;;
   *)
-    # "bm <name>" acts as shortcut for "bm go <name>"
-    if [ "$#" -eq 1 ]; then
-      name="$cmd"
-      target="$(_bm_get "$name")" || {
-        printf 'Bookmark not found: %s\n' "$name" >&2
-        return 1
-      }
-      [ -d "$target" ] || {
-        printf 'Bookmarked directory no longer exists: %s\n' "$target" >&2
-        return 1
-      }
-      cd "$target" || return 1
-      return 0
-    fi
-    printf 'Unknown command: %s\n' "$cmd" >&2
-    _bm_help
-    return 1
+    # "bm <name> [subpath ...]" acts as shortcut for "bm go <name> [subpath ...]"
+    name="$cmd"
+    shift 1
+    _bm_cd_bookmark "$name" "$@" || return 1
+    return 0
     ;;
   esac
 }

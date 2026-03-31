@@ -8,7 +8,7 @@ Simple utility for Linux/macOS shells to jump to saved folders quickly.
 2. Source `bookmarks.sh` from your shell profile (`~/.bashrc`, `~/.zshrc`, etc.):
 
 ```sh
-source /Users/jguo/Documents/bookmarksShell/bookmarks.sh
+source /Users/tom/Documents/bookmarksShell/bookmarks.sh
 ```
 
 3. Reload your shell:
@@ -27,6 +27,8 @@ bm info                         # Show storage file + valid/invalid counts
 bm clean                        # Remove bookmarks pointing to missing folders
 bm proj                         # cd to bookmark (shortcut)
 bm go proj                      # cd to bookmark
+bm go proj src/api              # cd to subfolder under bookmark
+bm proj src/api                 # shortcut form with subfolder
 bm path proj                    # Print path only
 bm rm proj                      # Remove bookmark
 bm help                         # Help
